@@ -801,6 +801,143 @@
         .icon-spin {
             animation: rotate-loading 1.2s linear infinite;
         }
+
+        /* Funnel Timeline Styles */
+        .product-journey-card {
+            background: rgba(15, 11, 28, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 20px;
+            transition: var(--transition);
+        }
+        .product-journey-card:hover {
+            border-color: rgba(139, 92, 246, 0.25);
+            background: rgba(25, 20, 45, 0.6);
+            transform: translateY(-2px);
+        }
+        .journey-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .journey-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .journey-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .journey-timeline-horizontal {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            margin-top: 24px;
+            margin-bottom: 8px;
+            padding: 0 20px;
+        }
+        /* Connecting line */
+        .journey-timeline-horizontal::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 50px;
+            right: 50px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.08);
+            z-index: 1;
+        }
+        .timeline-step-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100px;
+            position: relative;
+            z-index: 2;
+        }
+        .step-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #110e1a;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            transition: var(--transition);
+        }
+        .step-label {
+            font-size: 11.5px;
+            font-weight: 500;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .step-subtext {
+            font-size: 10px;
+            color: var(--text-dark);
+            margin-top: 2px;
+            max-width: 140px;
+        }
+        
+        /* Active / Success styles */
+        .timeline-step-item.success .step-circle {
+            background: var(--success);
+            border-color: var(--success);
+            color: #fff;
+            box-shadow: 0 0 10px var(--success-glow);
+        }
+        .timeline-step-item.success .step-label {
+            color: var(--success);
+            font-weight: 600;
+        }
+        
+        .timeline-step-item.warning .step-circle {
+            background: var(--warning);
+            border-color: var(--warning);
+            color: #fff;
+            box-shadow: 0 0 10px var(--warning-glow);
+        }
+        .timeline-step-item.warning .step-label {
+            color: var(--warning);
+            font-weight: 600;
+        }
+
+        .timeline-step-item.info .step-circle {
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: #fff;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+        }
+        .timeline-step-item.info .step-label {
+            color: var(--secondary);
+            font-weight: 600;
+        }
+
+        /* Pulsing animation for awaiting step */
+        .timeline-step-item.pulse .step-circle {
+            background: #1e1b2e;
+            border-color: var(--warning);
+            color: var(--warning);
+            animation: pulse-glow 1.5s infinite;
+        }
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
     </style>
 </head>
 <body>
@@ -837,6 +974,10 @@
             <button class="tab-btn" onclick="switchTab('historico')">
                 <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
                 Últimos Envios
+            </button>
+            <button class="tab-btn" onclick="switchTab('funil')">
+                <svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+                Funil do Dia
             </button>
             <button class="tab-btn" onclick="switchTab('configuracoes')">
                 <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
@@ -1029,6 +1170,82 @@
             </div>
         </div>
 
+        <!-- 3. FUNIL TAB -->
+        <div id="tab-funil" class="tab-content">
+            <!-- Funnel Overview Card -->
+            <div class="card" style="margin-bottom: 24px;">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: var(--primary);"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+                        Funil de Conversão do Dia (Recebimento ao Desbloqueio)
+                    </div>
+                    <button class="btn btn-secondary" onclick="fetchFunnelData()" style="padding: 6px 12px; font-size: 12px; height: auto;">
+                        <svg viewBox="0 0 24 24" style="width: 15px; height: 15px; fill: currentColor;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                        Atualizar Funil
+                    </button>
+                </div>
+
+                <!-- Funnel Visual representation -->
+                <div class="funnel-container" style="display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px 0;">
+                    <!-- Step 1: Recebidos -->
+                    <div class="funnel-stage stage-1" style="width: 80%; max-width: 600px; background: linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%); border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 12px; padding: 16px; text-align: center; position: relative;">
+                        <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">1. Chegaram (Entrada de Mercadoria)</div>
+                        <div style="font-size: 24px; font-weight: 700; color: #fff; margin-top: 4px;" id="funnel-count-arrived">0 itens</div>
+                        <!-- Connector arrow down -->
+                        <div style="position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); z-index: 5; color: var(--primary);">▼</div>
+                    </div>
+
+                    <div style="height: 12px;"></div>
+
+                    <!-- Step 2: Regra de Estoque -->
+                    <div class="funnel-stage stage-2" style="width: 65%; max-width: 487.5px; background: linear-gradient(90deg, rgba(245, 158, 11, 0.15) 0%, rgba(239, 68, 68, 0.15) 100%); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 16px; text-align: center; position: relative;">
+                        <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">2. Filtrados pela Regra (Sem Estoque / Pendentes)</div>
+                        <div style="font-size: 24px; font-weight: 700; color: #fff; margin-top: 4px;" id="funnel-count-rule">0 itens</div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;" id="funnel-percent-rule">0% do total de hoje</div>
+                        <!-- Connector arrow down -->
+                        <div style="position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); z-index: 5; color: var(--warning);">▼</div>
+                    </div>
+
+                    <div style="height: 12px;"></div>
+
+                    <!-- Step 3: Desbloqueados -->
+                    <div class="funnel-stage stage-3" style="width: 50%; max-width: 375px; background: linear-gradient(90deg, rgba(16, 185, 129, 0.2) 0%, rgba(4, 120, 87, 0.2) 100%); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; padding: 16px; text-align: center;">
+                        <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">3. Desbloqueados para Venda</div>
+                        <div style="font-size: 24px; font-weight: 700; color: #fff; margin-top: 4px;" id="funnel-count-unlocked">0 itens</div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;" id="funnel-percent-unlocked">0% do total recebido</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- List of products card -->
+            <div class="card">
+                <div class="card-header" style="flex-wrap: wrap; gap: 16px;">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: var(--primary);"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                        Jornada Detalhada por Produto (Entradas de Hoje)
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; width: 100%;">
+                        <div class="search-input-box" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                            <input id="search-funnel" type="text" placeholder="Filtrar por código, descrição ou fornecedor..." class="input-text" oninput="filterFunnelCards()">
+                        </div>
+                        
+                        <div style="display: flex; gap: 6px; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                            <button class="tab-btn active" id="btn-filter-funnel-all" onclick="setFunnelFilter('all')" style="padding: 6px 12px; font-size: 12px; border-radius: 6px;">Todos</button>
+                            <button class="tab-btn" id="btn-filter-funnel-rule" onclick="setFunnelFilter('rule')" style="padding: 6px 12px; font-size: 12px; border-radius: 6px;">Na Regra</button>
+                            <button class="tab-btn" id="btn-filter-funnel-blocked" onclick="setFunnelFilter('blocked')" style="padding: 6px 12px; font-size: 12px; border-radius: 6px;">Bloqueados</button>
+                            <button class="tab-btn" id="btn-filter-funnel-unlocked" onclick="setFunnelFilter('unlocked')" style="padding: 6px 12px; font-size: 12px; border-radius: 6px;">Desbloqueados</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="funnel-cards-container" style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px;">
+                    <!-- Cards injected dynamically -->
+                </div>
+            </div>
+        </div>
+
         <!-- 3. CONFIGURAÇÕES TAB -->
         <div id="tab-configuracoes" class="tab-content">
             <div class="card">
@@ -1201,6 +1418,10 @@
 
             if (tabId === 'configuracoes') {
                 fetchSettings();
+            }
+
+            if (tabId === 'funil') {
+                fetchFunnelData();
             }
         }
 
@@ -1607,6 +1828,191 @@
             } catch (err) {
                 alert('Erro ao salvar configurações: ' + err.message);
             }
+        }
+
+        // 3.5 FUNIL DE JORNADA DOS PRODUTOS
+        let funnelProducts = [];
+        let funnelFilter = 'all';
+
+        async function fetchFunnelData() {
+            const container = document.getElementById('funnel-cards-container');
+            container.innerHTML = `
+                <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+                    <svg class="icon-spin" viewBox="0 0 24 24" style="width: 32px; height: 32px; fill: var(--text-muted); margin-bottom: 12px;">
+                        <path d="M12 4V2C6.48 2 2 6.48 2 12h2c0-4.41 3.59-8 8-8zm0 16v2c5.52 0 10-4.48 10-10h-2c0 4.41-3.59 8-8 8z"/>
+                    </svg>
+                    <p>Buscando jornada dos produtos no Oracle...</p>
+                </div>
+            `;
+
+            try {
+                const res = await fetch('/api/funnel-products');
+                if (!res.ok) throw new Error('API error');
+                funnelProducts = await res.json();
+
+                renderFunnelSummary();
+                filterFunnelCards();
+            } catch (err) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 48px; color: var(--danger);">
+                        <p>⚠️ Erro ao carregar dados do funil: ${err.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderFunnelSummary() {
+            const totalArrived = funnelProducts.length;
+            
+            // Regra: tem pendência OR estoque anterior <= 0 (onde estoque anterior = QTDISP - QT)
+            const matchedRule = funnelProducts.filter(p => {
+                const estAnterior = p.QTDISP - p.QT;
+                return p.TEM_PENDENCIA === 'S' || estAnterior <= 0;
+            }).length;
+
+            const unlocked = funnelProducts.filter(p => p.DTDESBLOQUEIO !== null).length;
+
+            document.getElementById('funnel-count-arrived').textContent = `${totalArrived} produto(s)`;
+            document.getElementById('funnel-count-rule').textContent = `${matchedRule} produto(s)`;
+            document.getElementById('funnel-count-unlocked').textContent = `${unlocked} produto(s)`;
+
+            const percentRule = totalArrived > 0 ? Math.round((matchedRule / totalArrived) * 100) : 0;
+            const percentUnlocked = totalArrived > 0 ? Math.round((unlocked / totalArrived) * 100) : 0;
+
+            document.getElementById('funnel-percent-rule').textContent = `${percentRule}% das cargas de hoje`;
+            document.getElementById('funnel-percent-unlocked').textContent = `${percentUnlocked}% do total recebido`;
+        }
+
+        function setFunnelFilter(filter) {
+            funnelFilter = filter;
+            
+            // Update filter buttons styling
+            document.querySelectorAll('#tab-funil button').forEach(btn => {
+                if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(filter)) {
+                    btn.classList.add('active');
+                } else if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes('setFunnelFilter')) {
+                    btn.classList.remove('active');
+                }
+            });
+
+            filterFunnelCards();
+        }
+
+        function filterFunnelCards() {
+            const query = document.getElementById('search-funnel').value.toLowerCase().trim();
+            const container = document.getElementById('funnel-cards-container');
+
+            let filtered = funnelProducts.filter(p => {
+                const searchStr = `${p.CODPROD} ${p.DESCRICAO} ${p.FORNECEDOR || ''}`.toLowerCase();
+                return searchStr.includes(query);
+            });
+
+            if (funnelFilter === 'rule') {
+                filtered = filtered.filter(p => {
+                    const estAnterior = p.QTDISP - p.QT;
+                    return p.TEM_PENDENCIA === 'S' || estAnterior <= 0;
+                });
+            } else if (funnelFilter === 'blocked') {
+                filtered = filtered.filter(p => {
+                    const estAnterior = p.QTDISP - p.QT;
+                    const matchesRule = p.TEM_PENDENCIA === 'S' || estAnterior <= 0;
+                    return matchesRule && p.DTDESBLOQUEIO === null;
+                });
+            } else if (funnelFilter === 'unlocked') {
+                filtered = filtered.filter(p => p.DTDESBLOQUEIO !== null);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+                        <p>Nenhum produto atende aos filtros atuais.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map(p => {
+                const estAnterior = p.QTDISP - p.QT;
+                const matchesRule = p.TEM_PENDENCIA === 'S' || estAnterior <= 0;
+                const isUnlocked = p.DTDESBLOQUEIO !== null;
+                
+                // Formata data de movimentacao e desbloqueio
+                const dmov = p.DTMOV ? new Date(p.DTMOV).toLocaleDateString('pt-BR') : '-';
+                const ddesb = p.DTDESBLOQUEIO ? new Date(p.DTDESBLOQUEIO).toLocaleString('pt-BR') : 'Aguardando Liberação';
+
+                // Determine Step 2 State
+                let step2Class = 'timeline-step-item';
+                let step2Text = 'Estoque Normal';
+                let step2Sub = 'Não requer atenção';
+                
+                if (matchesRule) {
+                    step2Class += ' warning';
+                    step2Text = 'Ruptura / Pendência';
+                    
+                    const details = [];
+                    if (estAnterior <= 0) details.push('Estoque zerado');
+                    if (p.TEM_PENDENCIA === 'S') details.push(`${p.QTPEND} ped. pendentes`);
+                    step2Sub = details.join(' & ');
+                } else {
+                    step2Class += ' info';
+                }
+
+                // Determine Step 3 State
+                let step3Class = 'timeline-step-item';
+                let step3Text = 'Desbloqueado';
+                let step3Sub = '-';
+                
+                if (isUnlocked) {
+                    step3Class += ' success';
+                    step3Text = 'Liberado';
+                    step3Sub = ddesb;
+                } else if (matchesRule) {
+                    step3Class += ' pulse';
+                    step3Text = 'Bloqueado';
+                    step3Sub = 'Aguardando liberação';
+                } else {
+                    step3Sub = 'Livre para venda';
+                }
+
+                return `
+                    <div class="product-journey-card">
+                        <div class="journey-header">
+                            <div>
+                                <div class="journey-title">Cód: ${p.CODPROD} - ${escapeHTML(p.DESCRICAO)}</div>
+                                <div class="journey-meta" style="margin-top: 6px;">
+                                    <span>🏢 Filial: <strong>${p.CODFILIAL}</strong> - ${escapeHTML(p.NOMEFILIAL || 'Geral')}</span>
+                                    <span>📦 Qtd Recebida: <strong>${p.QT} un</strong></span>
+                                    <span>🧾 NF: <strong>${p.NUMNOTA || '-'}</strong></span>
+                                    <span>👤 Fornecedor: <strong>${escapeHTML(p.FORNECEDOR || 'N/A')}</strong></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="journey-timeline-horizontal">
+                            <!-- Step 1: Arrival -->
+                            <div class="timeline-step-item success">
+                                <div class="step-circle">1</div>
+                                <div class="step-label">Recebimento</div>
+                                <div class="step-subtext">Carga chegou em ${dmov}</div>
+                            </div>
+
+                            <!-- Step 2: Rule Analysis -->
+                            <div class="${step2Class}">
+                                <div class="step-circle">2</div>
+                                <div class="step-label">${step2Text}</div>
+                                <div class="step-subtext">${step2Sub}</div>
+                            </div>
+
+                            <!-- Step 3: Unlock -->
+                            <div class="${step3Class}">
+                                <div class="step-circle">3</div>
+                                <div class="step-label">${step3Text}</div>
+                                <div class="step-subtext">${step3Sub}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         // 4. LOG MONITORING

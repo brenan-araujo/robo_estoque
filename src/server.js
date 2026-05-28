@@ -5,6 +5,7 @@ const configManager = require('./utils/configManager');
 const sentTracker = require('./utils/sentTracker');
 const monitor = require('./services/monitorController');
 const logger = require('./utils/logger');
+const oracleService = require('./services/oracleService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -92,6 +93,16 @@ app.post('/api/settings', (req, res) => {
         } else {
             return res.status(400).json({ error: 'Falha ao salvar configurações' });
         }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// [GET] Dados do funil de jornada dos produtos de hoje
+app.get('/api/funnel-products', async (req, res) => {
+    try {
+        const products = await oracleService.getFunnelProducts();
+        res.json(products);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
