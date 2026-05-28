@@ -15,6 +15,10 @@ const DEFAULT_SETTINGS = {
     filialGroups: {
         '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '', '10': '',
         '11': '', '12': '', '13': '', '20': '', '21': '', '22': '', '23': '', '24': ''
+    },
+    filialNumbers: {
+        '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '', '10': '',
+        '11': '', '12': '', '13': '', '20': '', '21': '', '22': '', '23': '', '24': ''
     }
 };
 
@@ -37,7 +41,8 @@ function getSettings() {
             return {
                 pollIntervalMinutes: parsed.pollIntervalMinutes !== undefined ? parsed.pollIntervalMinutes : DEFAULT_SETTINGS.pollIntervalMinutes,
                 notifyNumbers: Array.isArray(parsed.notifyNumbers) ? parsed.notifyNumbers : DEFAULT_SETTINGS.notifyNumbers,
-                filialGroups: { ...DEFAULT_SETTINGS.filialGroups, ...parsed.filialGroups }
+                filialGroups: { ...DEFAULT_SETTINGS.filialGroups, ...parsed.filialGroups },
+                filialNumbers: { ...DEFAULT_SETTINGS.filialNumbers, ...parsed.filialNumbers || {} }
             };
         }
     } catch (err) {
@@ -55,7 +60,8 @@ function saveSettings(settings) {
         const toSave = {
             pollIntervalMinutes: parseInt(settings.pollIntervalMinutes) || DEFAULT_SETTINGS.pollIntervalMinutes,
             notifyNumbers: Array.isArray(settings.notifyNumbers) ? settings.notifyNumbers : DEFAULT_SETTINGS.notifyNumbers,
-            filialGroups: typeof settings.filialGroups === 'object' ? settings.filialGroups : DEFAULT_SETTINGS.filialGroups
+            filialGroups: typeof settings.filialGroups === 'object' ? settings.filialGroups : DEFAULT_SETTINGS.filialGroups,
+            filialNumbers: typeof settings.filialNumbers === 'object' ? settings.filialNumbers : DEFAULT_SETTINGS.filialNumbers
         };
         fs.writeFileSync(SETTINGS_FILE, JSON.stringify(toSave, null, 2), 'utf8');
         logger.info('⚙️ Configurações salvas em settings.json');
@@ -86,11 +92,22 @@ function getConfiguredFiliais() {
         .map(([cod, name]) => ({ codFilial: cod, groupName: name }));
 }
 
+function getFilialNumbers(codFilial) {
+    const settings = getSettings();
+    const numbersStr = settings.filialNumbers?.[String(codFilial)] || '';
+    if (!numbersStr || numbersStr.trim() === '') return [];
+    return numbersStr
+        .split(/[\n,]+/)
+        .map(n => n.trim().replace(/\D/g, ''))
+        .filter(n => n.length >= 8); // BR phones have at least 8 digits
+}
+
 module.exports = {
     getSettings,
     saveSettings,
     getPollInterval,
     getNotifyNumbers,
     getGroupNameForFilial,
-    getConfiguredFiliais
+    getConfiguredFiliais,
+    getFilialNumbers
 };

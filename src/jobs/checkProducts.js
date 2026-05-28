@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { getNewEntries, groupByFilial, formatMessage } = require('../services/oracleService');
 const whatsapp = require('../services/whatsappService');
-const { getGroupNameForFilial, NOTIFY_NUMBERS } = require('../config/groups');
+const { getGroupNameForFilial, NOTIFY_NUMBERS, getFilialNumbers } = require('../config/groups');
 const { getLastUnlockDate, saveLastUnlockDate } = require('../utils/stateManager');
 const logger = require('../utils/logger');
 
@@ -114,6 +114,36 @@ async function checkNewProducts() {
                         logger.warn(`⚠️ WhatsApp não está pronto para enviar para número ${number}`);
                     }
                     await sleep(1500);
+                }
+            }
+
+            // 4c. Envia para números dos vendedores da filial (com atrasos aleatórios espaçados de 20s a 60s)
+            const filialSellers = getFilialNumbers(codFilial);
+            if (filialSellers.length > 0) {
+                logger.info(`Fila: Iniciando envio lento para ${filialSellers.length} vendedor(es) da Filial ${codFilial}...`);
+                for (const sellerNumber of filialSellers) {
+                    if (whatsapp.isClientReady()) {
+                        // Gera delay aleatório de envio para humanizar (entre 20 e 60 segundos)
+                        const randomDelay = Math.floor(Math.random() * (60000 - 20000 + 1)) + 20000;
+                        logger.info(`Fila: Aguardando ${Math.round(randomDelay/1000)}s antes de notificar vendedor ${sellerNumber} da Filial ${codFilial}...`);
+                        await sleep(randomDelay);
+                        
+                        const sent = await whatsapp.sendToNumber(sellerNumber, message, data.items.length, { codFilial });
+                        if (sent) {
+                            logger.info(`✅ Vendedor: Filial ${codFilial} → ${sellerNumber} (${data.items.length} produtos)`);
+                        } else {
+                            if (!whatsapp.isClientReady()) {
+                                filialSuccess = false;
+                                logger.error(`❌ Falha ao enviar para vendedor ${sellerNumber} devido a erro no cliente WhatsApp`);
+                            } else {
+                                logger.warn(`⚠️ Falha ao enviar para vendedor ${sellerNumber} (possivelmente número inválido ou não registrado)`);
+                            }
+                        }
+                    } else {
+                        filialSuccess = false;
+                        logger.warn(`⚠️ WhatsApp não está pronto para enviar para vendedor ${sellerNumber}`);
+                        break; // Se o cliente de rede desconectou, encerra fila
+                    }
                 }
             }
 

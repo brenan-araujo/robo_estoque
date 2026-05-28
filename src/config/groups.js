@@ -28,5 +28,12 @@ module.exports = {
      */
     getConfiguredFiliais() {
         return configManager.getConfiguredFiliais();
+    },
+
+    /**
+     * Retorna a lista de celulares dos vendedores de uma filial
+     */
+    getFilialNumbers(codFilial) {
+        return configManager.getFilialNumbers(codFilial);
     }
 };

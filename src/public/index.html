@@ -621,7 +621,7 @@
         /* SETTINGS FORM */
         .settings-grid {
             display: grid;
-            grid-template-columns: 1fr 1.5fr;
+            grid-template-columns: 1fr 2.2fr;
             gap: 24px;
         }
 
@@ -1081,6 +1081,7 @@
                                             <th style="width: 80px;">Cód.</th>
                                             <th>Nome da Filial / Razão Social</th>
                                             <th>Nome Exato do Grupo</th>
+                                            <th>Contatos Privados (Vendedores)</th>
                                         </tr>
                                     </thead>
                                     <tbody id="filiais-table-body">
@@ -1523,6 +1524,7 @@
                 const tableBody = document.getElementById('filiais-table-body');
                 tableBody.innerHTML = Object.entries(filialNames).map(([cod, name]) => {
                     const groupValue = settings.filialGroups[cod] || '';
+                    const numbersValue = (settings.filialNumbers && settings.filialNumbers[cod]) || '';
                     return `
                         <tr class="filial-row" data-cod="${cod}" data-name="${name.toLowerCase()}">
                             <td style="font-weight: 600; color: var(--primary);">Filial ${cod}</td>
@@ -1531,6 +1533,9 @@
                             </td>
                             <td>
                                 <input type="text" class="filial-group-input" data-cod="${cod}" value="${escapeHTML(groupValue)}" placeholder="Ex: Estoque Brago Filial ${cod}">
+                            </td>
+                            <td>
+                                <input type="text" class="filial-numbers-input" data-cod="${cod}" value="${escapeHTML(numbersValue)}" placeholder="Ex: 556199999999, 556188888888">
                             </td>
                         </tr>
                     `;
@@ -1571,10 +1576,18 @@
                 filialGroups[cod] = input.value.trim();
             });
 
+            // Build filialNumbers object
+            const filialNumbers = {};
+            document.querySelectorAll('.filial-numbers-input').forEach(input => {
+                const cod = input.getAttribute('data-cod');
+                filialNumbers[cod] = input.value.trim();
+            });
+
             const settings = {
                 pollIntervalMinutes: parseInt(document.getElementById('settings-poll-interval').value),
                 notifyNumbers,
-                filialGroups
+                filialGroups,
+                filialNumbers
             };
 
             try {
