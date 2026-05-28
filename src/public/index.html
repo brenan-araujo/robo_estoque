@@ -1,0 +1,1632 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Monitor de Estoque</title>
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- QRCode CDN Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0b0813;
+            --bg-card: rgba(20, 16, 35, 0.6);
+            --bg-card-hover: rgba(30, 25, 50, 0.85);
+            --border-glow: rgba(139, 92, 246, 0.15);
+            --border-glow-hover: rgba(139, 92, 246, 0.35);
+            
+            --primary: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.4);
+            --secondary: #3b82f6;
+            
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.3);
+            --warning: #f59e0b;
+            --warning-glow: rgba(245, 158, 11, 0.3);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.3);
+            
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --text-dark: #6b7280;
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #090611 0%, #110c22 40%, #030207 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-attachment: fixed;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(139, 92, 246, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(139, 92, 246, 0.6);
+        }
+
+        /* App Wrapper */
+        .app-container {
+            max-width: 1300px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Glassmorphism Header */
+        header {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glow);
+            padding: 20px 32px;
+            border-radius: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .header-title-box {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .header-logo svg {
+            width: 26px;
+            height: 26px;
+            fill: #fff;
+        }
+
+        .header-text h1 {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: linear-gradient(90deg, #fff 0%, #d8b4fe 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-text p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* Live Status Badge */
+        .status-badge-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sys-badge {
+            padding: 6px 14px;
+            border-radius: 99px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            border: 1px solid transparent;
+            animation: pulse-border 2s infinite alternate;
+        }
+
+        .sys-badge.stopped {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border-color: rgba(239, 68, 68, 0.25);
+            --pulse-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .sys-badge.starting {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+            border-color: rgba(245, 158, 11, 0.25);
+            --pulse-color: rgba(245, 158, 11, 0.4);
+        }
+
+        .sys-badge.running {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border-color: rgba(16, 185, 129, 0.25);
+            --pulse-color: rgba(16, 185, 129, 0.4);
+        }
+
+        .sys-badge.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            border-color: rgba(239, 68, 68, 0.35);
+            --pulse-color: rgba(239, 68, 68, 0.5);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 5px var(--pulse-color); }
+            100% { box-shadow: 0 0 15px var(--pulse-color); }
+        }
+
+        /* Tabs Menu */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            background: rgba(15, 11, 28, 0.5);
+            padding: 6px;
+            border-radius: 12px;
+            border: 1px solid var(--border-glow);
+            margin-bottom: 24px;
+            width: fit-content;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition);
+        }
+
+        .tab-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .tab-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .tab-btn.active {
+            color: #fff;
+            background: var(--primary);
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        /* Content Container */
+        .tab-content {
+            flex: 1;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* GRID LAYOUTS */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 900px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards Style */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glow);
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            border-color: var(--border-glow-hover);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--primary);
+        }
+
+        /* Dashboard Items */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-item {
+            background: rgba(0,0,0,0.15);
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .stat-value.connected { color: var(--success); }
+        .stat-value.disconnected { color: var(--danger); }
+        .stat-value.pending { color: var(--warning); }
+
+        /* Controls button groups */
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 1px solid transparent;
+            transition: var(--transition);
+        }
+
+        .btn svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: #fff;
+            box-shadow: 0 4px 15px var(--success-glow);
+        }
+        .btn-success:hover:not(:disabled) {
+            background: #0ea5e9;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+            box-shadow: 0 4px 15px var(--danger-glow);
+        }
+        .btn-danger:hover:not(:disabled) {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: #fff;
+            box-shadow: 0 4px 15px var(--warning-glow);
+        }
+        .btn-warning:hover:not(:disabled) {
+            background: #d97706;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* QR Code Card */
+        .qr-card-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 280px;
+            text-align: center;
+        }
+
+        .qr-container {
+            background: #fff;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-placeholder {
+            width: 230px;
+            height: 230px;
+            background: #110e1a;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: var(--text-muted);
+            border: 2px dashed rgba(255,255,255,0.08);
+        }
+
+        .qr-placeholder svg {
+            width: 48px;
+            height: 48px;
+            fill: var(--text-dark);
+            animation: rotate-loading 2s linear infinite;
+        }
+
+        @keyframes rotate-loading {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .qr-success-graphic {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .checkmark-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(16, 185, 129, 0.1);
+            border: 2px solid var(--success);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--success);
+            box-shadow: 0 0 20px var(--success-glow);
+        }
+
+        .checkmark-circle svg {
+            width: 40px;
+            height: 40px;
+            fill: currentColor;
+        }
+
+        /* WHATSAPP CHAT LAYOUT */
+        .history-controls {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .search-input-box {
+            position: relative;
+            flex: 1;
+        }
+
+        .search-input-box svg {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            fill: var(--text-muted);
+        }
+
+        .input-text {
+            width: 100%;
+            background: rgba(0,0,0,0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 12px 16px 12px 42px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        .input-text:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.15);
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 600px;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .chat-bubble-wrapper {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+            margin-bottom: 4px;
+        }
+
+        .chat-bubble-wrapper.received {
+            align-self: flex-start;
+        }
+
+        .chat-bubble-wrapper.sent {
+            align-self: flex-end;
+        }
+
+        .chat-bubble {
+            padding: 16px 18px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .chat-bubble-wrapper.sent .chat-bubble {
+            background: #056162;
+            color: #e4e6eb;
+            border-top-right-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .chat-bubble-wrapper.received .chat-bubble {
+            background: #262d31;
+            color: #e4e6eb;
+            border-top-left-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .chat-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            font-size: 11px;
+            color: #92999e;
+            margin-bottom: 6px;
+            padding: 0 4px;
+        }
+
+        .chat-message-text {
+            white-space: pre-wrap;
+            font-family: inherit;
+        }
+
+        /* Bold/Italic parser simulation styles */
+        .chat-message-text b, .chat-message-text strong {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .chat-empty-state {
+            text-align: center;
+            padding: 48px;
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chat-empty-state svg {
+            width: 48px;
+            height: 48px;
+            fill: var(--text-dark);
+        }
+
+        /* SETTINGS FORM */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 850px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            background: rgba(0,0,0,0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.15);
+        }
+
+        .form-help {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        .groups-table-container {
+            max-height: 480px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .groups-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        .groups-table th, .groups-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .groups-table th {
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .groups-table tr:hover td {
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .groups-table input {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: #fff;
+            width: 100%;
+            font-family: inherit;
+            font-size: 12px;
+            transition: var(--transition);
+        }
+
+        .groups-table input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 5px rgba(139, 92, 246, 0.2);
+        }
+
+        /* CONSOLE LOGS */
+        .logs-window {
+            background: #05030a;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            padding: 20px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12.5px;
+            color: #22c55e;
+            height: 520px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+        }
+
+        .log-line {
+            margin-bottom: 4px;
+            border-left: 2px solid transparent;
+            padding-left: 8px;
+        }
+
+        .log-line.error {
+            color: #f87171;
+            border-color: #ef4444;
+        }
+
+        .log-line.warn {
+            color: #fbbf24;
+            border-color: #f59e0b;
+        }
+
+        .log-line.info {
+            color: #e2e8f0;
+            border-color: #3b82f6;
+        }
+
+        .log-line.debug {
+            color: #8b5cf6;
+            border-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .logs-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .logs-toolbar-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .checkbox-container input {
+            cursor: pointer;
+        }
+
+        /* Footers */
+        footer.app-footer {
+            margin-top: auto;
+            text-align: center;
+            padding: 24px 0 12px;
+            font-size: 12px;
+            color: var(--text-dark);
+            border-top: 1px solid rgba(255, 255, 255, 0.02);
+        }
+
+        /* SVG Icons definitions */
+        .icon-spin {
+            animation: rotate-loading 1.2s linear infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header>
+            <div class="header-title-box">
+                <div class="header-logo">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
+                    </svg>
+                </div>
+                <div class="header-text">
+                    <h1>Monitor de Entrada de Mercadorias</h1>
+                    <p>Controle do fluxo de dados Oracle ERP e notificações automáticas via WhatsApp</p>
+                </div>
+            </div>
+            <div class="status-badge-container">
+                <div id="sys-status-badge" class="sys-badge stopped">
+                    <span class="status-dot"></span>
+                    <span id="sys-status-text">Desconectado</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('dashboard')">
+                <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                Painel Geral
+            </button>
+            <button class="tab-btn" onclick="switchTab('historico')">
+                <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+                Últimos Envios
+            </button>
+            <button class="tab-btn" onclick="switchTab('configuracoes')">
+                <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                Configurações
+            </button>
+            <button class="tab-btn" onclick="switchTab('logs')">
+                <svg viewBox="0 0 24 24"><path d="M20 19.59V8l-6-6H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c.41 0 .78-.12 1.09-.34L20 19.59zM13 3.5L18.5 9H13V3.5zM6 20V4h5v6h6v10H6zm2-6h8v-2H8v2zm0-4h5V8H8v2z"/></svg>
+                Log do Sistema
+            </button>
+        </div>
+
+        <!-- 1. DASHBOARD TAB -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div class="dashboard-grid">
+                
+                <!-- Monitor Controls and details -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                            Controle do Monitoramento
+                        </div>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Estado</span>
+                            <span id="stat-state" class="stat-value disconnected">Parado</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Banco Oracle</span>
+                            <span id="stat-oracle" class="stat-value disconnected">Off</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">WhatsApp</span>
+                            <span id="stat-whatsapp" class="stat-value disconnected">Off</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Frequência</span>
+                            <span id="stat-interval" class="stat-value">-</span>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 24px;">
+                        <div class="stat-item">
+                            <span class="stat-label">Última Consulta</span>
+                            <span id="stat-last-scan" class="stat-value" style="font-size: 14px; font-weight: 500;">Nunca</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Tempo Ativo</span>
+                            <span id="stat-uptime" class="stat-value" style="font-size: 14px; font-weight: 500;">0s</span>
+                        </div>
+                    </div>
+
+                    <div id="scan-error-alert" class="stat-item" style="border-color: var(--danger); background: rgba(239, 68, 68, 0.05); margin-bottom: 24px; display: none;">
+                        <span class="stat-label" style="color: var(--danger); font-weight: 600;">⚠️ Erro na última execução</span>
+                        <span id="scan-error-text" style="font-size: 13px; color: #fff; margin-top: 4px; word-break: break-all;">-</span>
+                    </div>
+
+                    <div class="btn-group">
+                        <button id="btn-start" class="btn btn-success" onclick="controlMonitor('start')">
+                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            Iniciar
+                        </button>
+                        <button id="btn-stop" class="btn btn-danger" onclick="controlMonitor('stop')" disabled>
+                            <svg viewBox="0 0 24 24"><path d="M6 19h12V5H6v14z"/></svg>
+                            Desligar
+                        </button>
+                        <button id="btn-restart" class="btn btn-warning" onclick="controlMonitor('restart')" disabled>
+                            <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                            Reiniciar
+                        </button>
+                        <button id="btn-scan" class="btn btn-secondary" onclick="controlMonitor('scan')" disabled>
+                            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                            Consultar Agora
+                        </button>
+                    </div>
+                </div>
+
+                <!-- QR Code / Auth Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+                            Conexão WhatsApp
+                        </div>
+                    </div>
+                    <div class="qr-card-content">
+                        <!-- Esperando QR Code -->
+                        <div id="qr-loading-box" style="display: none;">
+                            <div class="qr-placeholder">
+                                <svg class="icon-spin" viewBox="0 0 24 24">
+                                    <path d="M12 4V2C6.48 2 2 6.48 2 12h2c0-4.41 3.59-8 8-8zm0 16v2c5.52 0 10-4.48 10-10h-2c0 4.41-3.59 8-8 8z"/>
+                                </svg>
+                                <p style="font-size: 13px;">Aguardando inicialização...</p>
+                            </div>
+                        </div>
+
+                        <!-- QR Code Ativo para Escanear -->
+                        <div id="qr-active-box" style="display: none;">
+                            <div class="qr-container">
+                                <canvas id="qrcode-canvas"></canvas>
+                            </div>
+                            <p style="font-weight: 500; margin-bottom: 4px;">Escanear QR Code</p>
+                            <p style="font-size: 12.5px; color: var(--text-muted); max-width: 280px; margin: 0 auto 16px;">
+                                Abra o WhatsApp no celular → Aparelhos Conectados → Conectar Aparelho
+                            </p>
+                        </div>
+
+                        <!-- Conectado com sucesso -->
+                        <div id="qr-success-box" class="qr-success-graphic" style="display: none;">
+                            <div class="checkmark-circle">
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            </div>
+                            <div style="text-align: center;">
+                                <h3 style="color: var(--success); font-size: 18px; font-weight: 600; margin-bottom: 6px;">Autenticado com Sucesso</h3>
+                                <p style="font-size: 13px; color: var(--text-muted); max-width: 280px; margin-bottom: 16px;">
+                                    O monitor está conectado ao seu WhatsApp e pronto para enviar as mensagens.
+                                </p>
+                                <button id="btn-logout-whatsapp" class="btn btn-danger" style="margin: 0 auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 8px 16px; height: auto;" onclick="logoutWhatsApp()">
+                                    <svg viewBox="0 0 24 24" style="width: 15px; height: 15px; fill: currentColor;"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+                                    Desconectar / Trocar WhatsApp
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Serviço Desligado -->
+                        <div id="qr-stopped-box">
+                            <div class="qr-placeholder" style="border-style: solid;">
+                                <svg viewBox="0 0 24 24" style="animation: none; fill: var(--text-dark);">
+                                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                                </svg>
+                                <p style="font-size: 13px; max-width: 200px;">Inicie o monitoramento para conectar o WhatsApp.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Dashboard Bottom Quick Summary -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><path d="M7 15h7v2H7zm0-4h10v2H7zm0-4h10v2H7zm12-4h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7-.25c.41 0 .75.34.75.75s-.34.75-.75.75-.75-.34-.75-.75.34-.75.75-.75zM19 19H5V5h14v14z"/></svg>
+                        Resumo de Atividades Recentes
+                    </div>
+                </div>
+                <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 250px;">
+                        <h4 style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">Mensagens Enviadas na Sessão</h4>
+                        <div style="font-size: 32px; font-weight: 700; color: #fff;" id="stats-session-sent">0</div>
+                    </div>
+                    <div style="flex: 2; min-width: 300px;">
+                        <h4 style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">Último Envio Registrado</h4>
+                        <div id="dashboard-last-sent-text" style="font-size: 13.5px; color: var(--text-muted); font-style: italic; border-left: 3px solid var(--primary); padding-left: 12px; line-height: 1.4;">
+                            Nenhuma mensagem enviada nesta sessão.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 2. HISTÓRICO TAB -->
+        <div id="tab-historico" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><path d="M11.9 2C6.47 2 2 6.48 2 12s4.47 10 9.9 10c4.34 0 8.06-2.83 9.38-6.75l-2.02-.67c-1.05 3.12-4.01 5.42-7.36 5.42-4.36 0-7.9-3.54-7.9-7.9s3.54-7.9 7.9-7.9c2.18 0 4.15.89 5.59 2.33L13 11h7V4l-2.65 2.65C15.87 5.12 14 4 11.9 2zM12.5 7v5.2l4.6 2.7-.8 1.2-5.3-3.2V7h1.5z"/></svg>
+                        Histórico de Mensagens Enviadas
+                    </div>
+                    <span id="history-count" style="font-size: 12.5px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 99px;">0 mensagen(s)</span>
+                </div>
+
+                <div class="history-controls">
+                    <div class="search-input-box">
+                        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                        <input id="search-history" type="text" placeholder="Filtrar por filial, número, fornecedor ou descrição..." class="input-text" oninput="filterHistory()">
+                    </div>
+                    <button class="btn btn-secondary" onclick="fetchSentHistory()">
+                        <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                        Atualizar
+                    </button>
+                </div>
+
+                <div id="chat-feed" class="chat-container">
+                    <!-- Chat bubbles injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. CONFIGURAÇÕES TAB -->
+        <div id="tab-configuracoes" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                        Parâmetros de Envio & Consulta
+                    </div>
+                </div>
+
+                <form id="settings-form" onsubmit="saveSettings(event)">
+                    <div class="settings-grid">
+                        
+                        <!-- Left Panel: General settings -->
+                        <div>
+                            <h3 style="font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">Frequência e Destinatários</h3>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="settings-poll-interval">Intervalo de Verificação (Minutos)</label>
+                                <input type="number" id="settings-poll-interval" class="form-input" min="1" max="1440" required>
+                                <p class="form-help">Intervalo de tempo entre cada consulta no banco Oracle.</p>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="settings-notify-numbers">Contatos Diretos (Administradores)</label>
+                                <textarea id="settings-notify-numbers" class="form-input" rows="6" placeholder="Ex: 5561983391951, 5561998097323" style="resize: vertical; font-family: 'Fira Code', monospace; font-size: 13px; line-height: 1.5;"></textarea>
+                                <p class="form-help">Números de telefone BR que receberão cópias de TODAS as entradas notificadas. Separe-os com vírgula ou uma linha por número (formato: DDI + DDD + número, ex: 5561983391951).</p>
+                            </div>
+
+                            <div style="margin-top: 32px;">
+                                <button type="submit" class="btn btn-success" style="width: 100%; padding: 14px 20px;">
+                                    <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+                                    Salvar Configurações
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Branch Group Mapping -->
+                        <div>
+                            <h3 style="font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                                Mapeamento de Filiais → Grupos WhatsApp
+                                <input type="text" id="filter-filiais" placeholder="Filtrar filiais..." style="font-size: 12px; padding: 4px 8px; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-family: inherit; width: 150px;" oninput="filterFilialTable()">
+                            </h3>
+                            <p class="form-help" style="margin-bottom: 12px;">Defina o nome exato do grupo do WhatsApp onde as entradas de cada filial devem ser notificadas. Deixe vazio para ignorar notificações de grupo para aquela filial.</p>
+                            
+                            <div class="groups-table-container">
+                                <table class="groups-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 80px;">Cód.</th>
+                                            <th>Nome da Filial / Razão Social</th>
+                                            <th>Nome Exato do Grupo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="filiais-table-body">
+                                        <!-- Filiais injected dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 4. LOGS TAB -->
+        <div id="tab-logs" class="tab-content">
+            <div class="card">
+                <div class="logs-toolbar">
+                    <div class="card-title" style="margin-bottom: 0;">
+                        <svg viewBox="0 0 24 24"><path d="M20 19.59V8l-6-6H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c.41 0 .78-.12 1.09-.34L20 19.59z"/></svg>
+                        Registros em Tempo Real (Console Logs)
+                    </div>
+                    <div class="logs-toolbar-controls">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="logs-autoscroll" checked> Rolagem Automática
+                        </label>
+                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="fetchLogs()">
+                            Atualizar Logs
+                        </button>
+                    </div>
+                </div>
+                <div id="logs-console" class="logs-window">
+                    Carregando registros...
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>Brago Estoque &copy; 2026. Todos os direitos reservados. Desenvolvido para automação comercial.</p>
+        </footer>
+
+    </div>
+
+    <script>
+        // State variables
+        let currentTab = 'dashboard';
+        let statusPollTimer = null;
+        let logsPollTimer = null;
+        let sentHistory = [];
+        let filialNames = {
+            '1': 'BRAGO ATACADISTA LTDA',
+            '2': 'VICENTINA GRECO DE MORAES EPP',
+            '3': 'BRAGO DIST PROD CONS LTDA (FILIAL)',
+            '4': 'THIAGO MORAES AZEVEDO EPP',
+            '5': 'PARCEIRA DISTRIBUIDORA DE EMB. LTDA',
+            '6': 'TRIUNFO DISTRIBUIDORA DE EMBALAGENS',
+            '7': 'TOP DISTRIBUIDORA DE EMB LTDA - EPP',
+            '8': 'VIP COMERCIO DE EMBALAGENS EIRELI - EPP',
+            '9': 'TOBRAGO DISTR. E ATACAD. DE EMBALAGENS',
+            '10': 'TOBRAGO DISTRIBUIDORA E ATACAD. - GO',
+            '11': 'VIP COMERCIO DE EMBALAGENS EIRELI',
+            '12': 'TOP DISTRIBUIDORA DE EMB LTDA- EPP',
+            '13': 'GOLD DISTRIBUIDORA DE EMBALAGENS LTDA',
+            '20': 'BRAGO DISTRIB. DE PROD. DE CONSUMO (DF)',
+            '21': 'BRAGO DISTRIB. DE PROD. DE CONSUMO (GO)',
+            '22': 'BRAGO DISTRIB. DE PROD. DE CONSUMO (TO)',
+            '23': 'BRAGO DISTRIB. DE PROD. DE CONSUMO (MS)',
+            '24': 'BRG PARTICIPACOES LTDA'
+        };
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            // Load status and config
+            pollStatus();
+            fetchSettings();
+            
+            // Set polling interval for status (every 2 seconds)
+            statusPollTimer = setInterval(pollStatus, 2000);
+
+            // Fetch history & logs immediately
+            fetchSentHistory();
+            fetchLogs();
+        });
+
+        // Tab switcher
+        function switchTab(tabId) {
+            currentTab = tabId;
+            
+            // Remove active class from all tabs & buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Activate target tab
+            const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick').includes(tabId));
+            if (targetBtn) targetBtn.classList.add('active');
+            
+            const targetContent = document.getElementById(`tab-${tabId}`);
+            if (targetContent) targetContent.classList.add('active');
+
+            // Tab-specific background loading and timers
+            if (tabId === 'logs') {
+                fetchLogs();
+                if (!logsPollTimer) {
+                    logsPollTimer = setInterval(fetchLogs, 3000);
+                }
+            } else {
+                if (logsPollTimer) {
+                    clearInterval(logsPollTimer);
+                    logsPollTimer = null;
+                }
+            }
+
+            if (tabId === 'historico') {
+                fetchSentHistory();
+            }
+
+            if (tabId === 'configuracoes') {
+                fetchSettings();
+            }
+        }
+
+        // 1. POLL STATUS & RENDER CONTROL STATE
+        async function pollStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if (!res.ok) throw new Error('API offline');
+                const data = await res.json();
+                
+                renderStatus(data);
+            } catch (err) {
+                renderOffline();
+            }
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds || seconds <= 0) return '0s';
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            
+            const parts = [];
+            if (h > 0) parts.push(`${h}h`);
+            if (m > 0) parts.push(`${m}m`);
+            if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+            return parts.join(' ');
+        }
+
+        function formatTime(isoString) {
+            if (!isoString) return '-';
+            const date = new Date(isoString);
+            return date.toLocaleString('pt-BR');
+        }
+
+        function renderStatus(status) {
+            // Header Badge
+            const badge = document.getElementById('sys-status-badge');
+            const badgeText = document.getElementById('sys-status-text');
+            badge.className = 'sys-badge ' + status.state.toLowerCase();
+            
+            // Translate status text
+            let stateDisplay = 'Desconectado';
+            if (status.state === 'RUNNING') stateDisplay = 'Monitorando';
+            else if (status.state === 'STARTING') stateDisplay = 'Inicializando';
+            else if (status.state === 'STOPPING') stateDisplay = 'Desligando';
+            else if (status.state === 'ERROR') stateDisplay = 'Falha no Monitor';
+            badgeText.textContent = stateDisplay;
+
+            // Stats grid
+            const statState = document.getElementById('stat-state');
+            statState.textContent = stateDisplay;
+            statState.className = 'stat-value ' + status.state.toLowerCase();
+
+            // Oracle Status
+            const statOracle = document.getElementById('stat-oracle');
+            statOracle.className = 'stat-value ' + status.dbStatus.toLowerCase();
+            let dbDisplay = 'Off';
+            if (status.dbStatus === 'connected') dbDisplay = 'Conectado';
+            else if (status.dbStatus === 'connecting') dbDisplay = 'Conectando';
+            else if (status.dbStatus === 'error') dbDisplay = 'Erro';
+            statOracle.textContent = dbDisplay;
+
+            // WhatsApp Status
+            const statWhatsapp = document.getElementById('stat-whatsapp');
+            statWhatsapp.className = 'stat-value ' + status.whatsappStatus.toLowerCase();
+            let waDisplay = 'Off';
+            if (status.whatsappStatus === 'ready') waDisplay = 'Conectado';
+            else if (status.whatsappStatus === 'authenticating') waDisplay = 'Autenticando';
+            else if (status.whatsappStatus === 'authenticated') waDisplay = 'Autenticado';
+            else if (status.whatsappStatus === 'error') waDisplay = 'Erro';
+            statWhatsapp.textContent = waDisplay;
+
+            // Poll interval & uptime
+            document.getElementById('stat-interval').textContent = `${status.pollInterval} min`;
+            document.getElementById('stat-uptime').textContent = formatDuration(status.uptime);
+            document.getElementById('stat-last-scan').textContent = formatTime(status.lastScanTime);
+
+            // Scan error alert
+            const errorAlert = document.getElementById('scan-error-alert');
+            if (status.lastScanError) {
+                errorAlert.style.display = 'block';
+                document.getElementById('scan-error-text').textContent = status.lastScanError;
+            } else {
+                errorAlert.style.display = 'none';
+            }
+
+            // Buttons enable/disable
+            const isStopped = status.state === 'STOPPED' || status.state === 'ERROR';
+            const isRunning = status.state === 'RUNNING';
+            
+            document.getElementById('btn-start').disabled = !isStopped;
+            document.getElementById('btn-stop').disabled = isStopped;
+            document.getElementById('btn-restart').disabled = isStopped;
+            document.getElementById('btn-scan').disabled = !isRunning;
+
+            // QR Code Box Rendering
+            const qrLoading = document.getElementById('qr-loading-box');
+            const qrActive = document.getElementById('qr-active-box');
+            const qrSuccess = document.getElementById('qr-success-box');
+            const qrStopped = document.getElementById('qr-stopped-box');
+
+            if (status.state === 'STOPPED') {
+                qrLoading.style.display = 'none';
+                qrActive.style.display = 'none';
+                qrSuccess.style.display = 'none';
+                qrStopped.style.display = 'block';
+            } else if (status.whatsappStatus === 'ready') {
+                qrLoading.style.display = 'none';
+                qrActive.style.display = 'none';
+                qrSuccess.style.display = 'flex';
+                qrStopped.style.display = 'none';
+            } else if (status.whatsappStatus === 'authenticating' && status.hasQrCode) {
+                qrLoading.style.display = 'none';
+                qrActive.style.display = 'block';
+                qrSuccess.style.display = 'none';
+                qrStopped.style.display = 'none';
+                
+                // Draw QR code on canvas
+                const canvas = document.getElementById('qrcode-canvas');
+                QRCode.toCanvas(canvas, status.qrCode, {
+                    width: 210,
+                    margin: 1,
+                    color: {
+                        dark: '#0f0c20',
+                        light: '#ffffff'
+                    }
+                });
+            } else {
+                // Initializing or authenticating but no QR code yet
+                qrLoading.style.display = 'block';
+                qrActive.style.display = 'none';
+                qrSuccess.style.display = 'none';
+                qrStopped.style.display = 'none';
+            }
+        }
+
+        function renderOffline() {
+            const badge = document.getElementById('sys-status-badge');
+            const badgeText = document.getElementById('sys-status-text');
+            badge.className = 'sys-badge error';
+            badgeText.textContent = 'Servidor Offline';
+
+            document.getElementById('stat-state').textContent = 'API Desconectada';
+            document.getElementById('stat-state').className = 'stat-value error';
+            document.getElementById('stat-oracle').textContent = 'Desconhecido';
+            document.getElementById('stat-oracle').className = 'stat-value';
+            document.getElementById('stat-whatsapp').textContent = 'Desconhecido';
+            document.getElementById('stat-whatsapp').className = 'stat-value';
+
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-stop').disabled = true;
+            document.getElementById('btn-restart').disabled = true;
+            document.getElementById('btn-scan').disabled = true;
+        }
+
+        // TRIGGER CONTROL ACTION
+        async function controlMonitor(action) {
+            // Confirm stop for safety
+            if (action === 'stop' && !confirm('Tem certeza de que deseja desligar o monitoramento de estoque?')) {
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action })
+                });
+                const data = await res.json();
+                
+                if (data.error) {
+                    alert('Erro: ' + data.error);
+                } else {
+                    pollStatus();
+                    // Se fez scan, atualiza o histórico e logs logo em seguida
+                    if (action === 'scan') {
+                        setTimeout(() => {
+                            fetchSentHistory();
+                            fetchLogs();
+                        }, 2000);
+                    }
+                }
+            } catch (err) {
+                alert('Erro ao enviar comando de controle: ' + err.message);
+            }
+        }
+
+        async function logoutWhatsApp() {
+            if (!confirm('Deseja realmente desconectar esta conta do WhatsApp? O monitoramento será pausado e a sessão atual será removida.')) {
+                return;
+            }
+            
+            const btn = document.getElementById('btn-logout-whatsapp');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `
+                <svg class="icon-spin" viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;">
+                    <path d="M12 4V2C6.48 2 2 6.48 2 12h2c0-4.41 3.59-8 8-8zm0 16v2c5.52 0 10-4.48 10-10h-2c0 4.41-3.59 8-8 8z"/>
+                </svg> Desconectando...
+            `;
+            
+            try {
+                const res = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'logout-whatsapp' })
+                });
+                const data = await res.json();
+                
+                if (data.error) {
+                    alert('Erro ao desconectar: ' + data.error);
+                } else {
+                    pollStatus();
+                }
+            } catch (err) {
+                alert('Erro ao enviar comando de desconexão: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 2. FETCH HISTORY & FILTER
+        async function fetchSentHistory() {
+            try {
+                const res = await fetch('/api/sent');
+                if (!res.ok) throw new Error('API error');
+                sentHistory = await res.json();
+                
+                // Update stats
+                document.getElementById('history-count').textContent = `${sentHistory.length} mensagem(ns)`;
+                document.getElementById('stats-session-sent').textContent = sentHistory.length;
+                
+                if (sentHistory.length > 0) {
+                    // Update dashboard latest sent text box (simulated text formatted preview)
+                    const lastMsg = sentHistory[0];
+                    const cleanMsg = lastMsg.message.substring(0, 180) + (lastMsg.message.length > 180 ? '...' : '');
+                    document.getElementById('dashboard-last-sent-text').innerHTML = `
+                        <strong>Filial ${lastMsg.details.codFilial || 'Geral'} -> ${lastMsg.target}</strong> (${new Date(lastMsg.timestamp).toLocaleTimeString()}):<br>
+                        ${escapeHTML(cleanMsg).replace(/\n/g, '<br>')}
+                    `;
+                }
+
+                filterHistory();
+            } catch (err) {
+                console.error('Falha ao obter histórico de envios:', err);
+            }
+        }
+
+        function filterHistory() {
+            const query = document.getElementById('search-history').value.toLowerCase().trim();
+            const feed = document.getElementById('chat-feed');
+            
+            const filtered = sentHistory.filter(item => {
+                const searchStr = `${item.target} ${item.type} ${item.message} ${item.details.codFilial || ''}`.toLowerCase();
+                return searchStr.includes(query);
+            });
+
+            if (filtered.length === 0) {
+                feed.innerHTML = `
+                    <div class="chat-empty-state">
+                        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-4H6V8h12v2z"/></svg>
+                        <p>${query ? 'Nenhum envio corresponde à sua busca.' : 'Nenhuma mensagem de estoque enviada ainda.'}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            feed.innerHTML = filtered.map(item => {
+                const date = new Date(item.timestamp);
+                const timeString = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + ' - ' + date.toLocaleDateString('pt-BR');
+                const isGroup = item.type === 'group';
+                
+                return `
+                    <div class="chat-bubble-wrapper sent">
+                        <div class="chat-meta">
+                            <span>📱 Para: <strong>${escapeHTML(item.target)}</strong> (${isGroup ? 'Grupo' : 'Contato'})</span>
+                            <span>${timeString}</span>
+                        </div>
+                        <div class="chat-bubble">
+                            <div class="chat-message-text">${formatWhatsAppMarkdown(escapeHTML(item.message))}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatWhatsAppMarkdown(text) {
+            // Basic WhatsApp formatting simulator
+            return text
+                .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
+                .replace(/_([^_]+)_/g, '<em>$1</em>')
+                .replace(/~([^~]+)~/g, '<del>$1</del>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>');
+        }
+
+        function escapeHTML(text) {
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // 3. SETTINGS MANIPULATION
+        async function fetchSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                if (!res.ok) throw new Error('API error');
+                const settings = await res.json();
+                
+                // Set poll interval
+                document.getElementById('settings-poll-interval').value = settings.pollIntervalMinutes;
+                
+                // Set direct numbers
+                document.getElementById('settings-notify-numbers').value = settings.notifyNumbers.join(',\n');
+
+                // Render filiais groups table
+                const tableBody = document.getElementById('filiais-table-body');
+                tableBody.innerHTML = Object.entries(filialNames).map(([cod, name]) => {
+                    const groupValue = settings.filialGroups[cod] || '';
+                    return `
+                        <tr class="filial-row" data-cod="${cod}" data-name="${name.toLowerCase()}">
+                            <td style="font-weight: 600; color: var(--primary);">Filial ${cod}</td>
+                            <td>
+                                <div><strong>${name}</strong></div>
+                            </td>
+                            <td>
+                                <input type="text" class="filial-group-input" data-cod="${cod}" value="${escapeHTML(groupValue)}" placeholder="Ex: Estoque Brago Filial ${cod}">
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error('Falha ao obter configurações:', err);
+            }
+        }
+
+        function filterFilialTable() {
+            const query = document.getElementById('filter-filiais').value.toLowerCase().trim();
+            document.querySelectorAll('.filial-row').forEach(row => {
+                const cod = row.getAttribute('data-cod');
+                const name = row.getAttribute('data-name');
+                if (cod.includes(query) || name.includes(query)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        async function saveSettings(event) {
+            event.preventDefault();
+            
+            // Build notify numbers array
+            const textareaValue = document.getElementById('settings-notify-numbers').value;
+            const notifyNumbers = textareaValue
+                .split(/[\n,]+/)
+                .map(n => n.trim().replace(/\D/g, ''))
+                .filter(n => n.length >= 8); // BR phones have at least 8 digits
+
+            // Build filialGroups object
+            const filialGroups = {};
+            document.querySelectorAll('.filial-group-input').forEach(input => {
+                const cod = input.getAttribute('data-cod');
+                filialGroups[cod] = input.value.trim();
+            });
+
+            const settings = {
+                pollIntervalMinutes: parseInt(document.getElementById('settings-poll-interval').value),
+                notifyNumbers,
+                filialGroups
+            };
+
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (res.ok) {
+                    alert('Configurações salvas com sucesso! O intervalo foi atualizado e novas regras de grupos foram aplicadas.');
+                    fetchSettings();
+                    pollStatus();
+                } else {
+                    throw new Error('Falha na resposta do servidor');
+                }
+            } catch (err) {
+                alert('Erro ao salvar configurações: ' + err.message);
+            }
+        }
+
+        // 4. LOG MONITORING
+        async function fetchLogs() {
+            try {
+                const res = await fetch('/api/logs');
+                if (!res.ok) throw new Error('API error');
+                const data = await res.json();
+                
+                const consoleDiv = document.getElementById('logs-console');
+                const autoscroll = document.getElementById('logs-autoscroll').checked;
+                
+                if (!data.logs || data.logs.length === 0) {
+                    consoleDiv.innerHTML = '<span style="color: var(--text-dark);">[Nenhum log gravado ainda. Inicie o monitoramento]</span>';
+                    return;
+                }
+
+                consoleDiv.innerHTML = data.logs.map(line => {
+                    let levelClass = 'info';
+                    if (line.includes('ERROR:')) levelClass = 'error';
+                    else if (line.includes('WARN:')) levelClass = 'warn';
+                    else if (line.includes('DEBUG:')) levelClass = 'debug';
+                    
+                    return `<div class="log-line ${levelClass}">${escapeHTML(line)}</div>`;
+                }).join('');
+
+                if (autoscroll) {
+                    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+                }
+            } catch (err) {
+                console.error('Falha ao buscar logs:', err);
+            }
+        }
+    </script>
+</body>
+</html>

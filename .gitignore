@@ -1,0 +1,9 @@
+node_modules/
+.wwebjs_auth/
+.wwebjs_cache/
+data/*.json
+logs/
+.env
+oracle_client/
+instantclient.zip
+explore_db*.js
