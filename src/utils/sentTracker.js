@@ -4,7 +4,7 @@ const logger = require('./logger');
 
 const SENT_FILE = path.join(__dirname, '..', '..', 'data', 'sent_messages.json');
 const DATA_DIR = path.dirname(SENT_FILE);
-const MAX_HISTORY = 200;
+const MAX_HISTORY = 2000;
 
 function ensureDataDir() {
     if (!fs.existsSync(DATA_DIR)) {

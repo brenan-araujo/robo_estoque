@@ -1,0 +1,15 @@
+{
+  "codCli": 55466,
+  "codUsur": 86,
+  "numPedCli": "OC-102030",
+  "dtEntrega": "2026-07-20",
+  "observacao": "Importação automática cotação. CC: CC-ADM - Administrativo Matriz",
+  "itens": [
+    {
+      "codProd": 18179,
+      "qt": 10,
+      "pVenda": 15.5,
+      "codEndEntCli": 1961
+    }
+  ]
+}

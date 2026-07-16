@@ -1,0 +1,209 @@
+================================================================================
+           REGRAS DE NEGÓCIO E CONSULTAS SQL - RELATÓRIO DE VENDAS DIÁRIO
+================================================================================
+Este documento descreve detalhadamente cada métrica calculada para o Relatório 
+de Vendas Diário, as respectivas regras comerciais aplicadas e os comandos SQL
+utilizados para a extração direta da base Oracle do WinThor.
+
+--------------------------------------------------------------------------------
+1. FATURAMENTO E DEVOLUÇÕES DO DIA (Vendas Líquidas, Brutas e Devoluções)
+--------------------------------------------------------------------------------
+* Regra Comercial:
+  - Vendas Brutas: Soma do valor total (VLTOTAL) na tabela de notas fiscais de 
+    saída (PCNFSAID) de vendas emitidas no dia, excluindo notas canceladas 
+    (DTCANCEL IS NULL), restringindo às condições de venda válidas (CONDVENDA 
+    em 1, 7 ou 9) e filtrando apenas vendedores ativos (U.BLOQUEIO = 'N').
+  - Devoluções: Soma do valor físico de movimentações (QT * PUNIT) na tabela 
+    PCMOV cuja operação seja devolução de vendas (CODOPER = 'ED') no dia de 
+    referência, filtrando para vendedores ativos.
+  - Vendas Líquidas: Faturamento Bruto do dia subtraído das Devoluções do dia.
+
+* SQL - Faturamento Bruto do Dia:
+SELECT 
+    COUNT(DISTINCT F.NUMNOTA) AS TOTAL_PEDIDOS,
+    NVL(SUM(F.VLTOTAL), 0) AS TOTAL_VENDAS_BRUTA,
+    COUNT(DISTINCT F.CODCLI) AS CLIENTES_ATENDIDOS,
+    COUNT(DISTINCT F.CODUSUR) AS VENDEDORES_ATIVOS,
+    COUNT(DISTINCT F.CODFILIAL) AS FILIAIS_ATIVAS
+FROM PCNFSAID F
+JOIN PCUSUARI U ON U.CODUSUR = F.CODUSUR
+WHERE F.DTSAIDA >= TRUNC(:targetDate)
+AND F.DTSAIDA < TRUNC(:targetDate) + 1
+AND F.DTCANCEL IS NULL
+AND F.CONDVENDA IN (1, 7, 9)
+AND U.BLOQUEIO = 'N';
+
+* SQL - Devoluções do Dia:
+SELECT NVL(SUM(M.QT * M.PUNIT), 0) AS TOTAL_DEVOLUCOES
+FROM PCMOV M
+JOIN PCUSUARI U ON U.CODUSUR = M.CODUSUR
+WHERE M.DTMOV >= TRUNC(:targetDate)
+AND M.DTMOV < TRUNC(:targetDate) + 1
+AND M.CODOPER = 'ED'
+AND U.BLOQUEIO = 'N';
+
+--------------------------------------------------------------------------------
+2. METAS DIÁRIAS (Meta de Venda, Novos e Reativados)
+--------------------------------------------------------------------------------
+* Regra Comercial:
+  Soma das metas previstas cadastradas diariamente na tabela PCMETARCA para a 
+  data de referência, filtrando apenas vendedores ativos (U.BLOQUEIO = 'N').
+  - Meta de Vendas do Dia: Campo VLVENDAPREV.
+  - Meta de Novos Clientes: Campo QTPEDPREV.
+  - Meta de Clientes Reativados: Campo QTITENSPEDPREV.
+
+* SQL:
+SELECT 
+    NVL(SUM(M.VLVENDAPREV), 0) AS META_DIA,
+    NVL(SUM(M.QTPEDPREV), 0) AS META_NOVOS,
+    NVL(SUM(M.QTITENSPEDPREV), 0) AS META_REATIVADOS
+FROM PCMETARCA M
+JOIN PCUSUARI U ON U.CODUSUR = M.CODUSUR
+WHERE M.DATA = TRUNC(:targetDate)
+AND U.BLOQUEIO = 'N';
+
+--------------------------------------------------------------------------------
+3. TICKET MÉDIO DO DIA
+--------------------------------------------------------------------------------
+* Regra Comercial:
+  Divisão das Vendas Líquidas do dia pelo número de pedidos faturados distintos.
+  
+* Cálculo Programático:
+  TOTAL_VENDAS_LIQUIDA / TOTAL_PEDIDOS
+
+--------------------------------------------------------------------------------
+4. POSITIVAÇÃO E CARTEIRA DE CLIENTES (QTD-CARTEIRA)
+--------------------------------------------------------------------------------
+* Regra Comercial:
+  - Clientes Positivados: Contagem de clientes únicos (CODCLI) faturados na 
+    tabela PCNFSAID no dia de referência (sob os mesmos filtros de notas 
+    válidas, cancelamento e bloqueio de RCA das Vendas Brutas).
+  - QTD-CARTEIRA: Contagem de clientes ativos na tabela PCCLIENT vinculados a 
+    vendedores (CODUSUR1) que possuam metas diárias planejadas na PCMETARCA para 
+    o dia selecionado e que estejam desbloqueados.
+
+* SQL - Clientes Positivados:
+SELECT COUNT(DISTINCT F.CODCLI) AS CLIENTES_POSITIVADOS
+FROM PCNFSAID F
+JOIN PCUSUARI U ON U.CODUSUR = F.CODUSUR
+WHERE F.DTSAIDA >= TRUNC(:targetDate)
+AND F.DTSAIDA < TRUNC(:targetDate) + 1
+AND F.DTCANCEL IS NULL
+AND F.CONDVENDA IN (1, 7, 9)
+AND U.BLOQUEIO = 'N';
+
+* SQL - QTD-CARTEIRA (Base Ativa):
+SELECT COUNT(*) AS TOTAL_CLIENTES_ATIVOS 
+FROM PCCLIENT cl
+WHERE cl.CODUSUR1 IN (
+    SELECT DISTINCT M.CODUSUR 
+    FROM PCMETARCA M
+    JOIN PCUSUARI U ON U.CODUSUR = M.CODUSUR
+    WHERE M.DATA = TRUNC(:targetDate)
+    AND U.BLOQUEIO = 'N'
+);
+
+--------------------------------------------------------------------------------
+5. NOVOS CLIENTES DO DIA
+--------------------------------------------------------------------------------
+* Regra Comercial:
+  Contagem de novos clientes cadastrados na PCCLIENT cuja data de cadastro 
+  (DTCADASTRO) seja igual à data de referência, vinculados a vendedores ativos.
+
+* SQL:
+SELECT COUNT(*) AS NOVOS_CLIENTES
+FROM PCCLIENT cl
+JOIN PCUSUARI U ON U.CODUSUR = cl.CODUSUR1
+WHERE cl.DTCADASTRO >= TRUNC(:targetDate)
+AND cl.DTCADASTRO < TRUNC(:targetDate) + 1
+AND U.BLOQUEIO = 'N';
+
+--------------------------------------------------------------------------------
+6. CLIENTES REATIVADOS DO DIA
+--------------------------------------------------------------------------------
+* Regra Comercial:
+  Contagem de clientes únicos (CODCLI) faturados hoje na PCNFSAID (venda normal,
+  não cancelado, RCA ativo) que não tiveram nenhuma compra faturada nos 180 
+  dias anteriores ao dia selecionado. Exclui novos clientes do dia comparando a 
+  data de cadastro (DTCADASTRO < hoje).
+
+* SQL:
+SELECT COUNT(DISTINCT F.CODCLI) AS REATIVADOS
+FROM PCNFSAID F
+JOIN PCCLIENT cl ON cl.CODCLI = F.CODCLI
+JOIN PCUSUARI U ON U.CODUSUR = F.CODUSUR
+WHERE F.DTSAIDA >= TRUNC(:targetDate)
+AND F.DTSAIDA < TRUNC(:targetDate) + 1
+AND F.DTCANCEL IS NULL
+AND F.CONDVENDA IN (1, 7, 9)
+AND U.BLOQUEIO = 'N'
+AND NOT EXISTS (
+    SELECT 1 FROM PCNFSAID F2
+    WHERE F2.CODCLI = F.CODCLI
+    AND F2.DTCANCEL IS NULL
+    AND F2.CONDVENDA IN (1, 7, 9)
+    AND F2.DTSAIDA BETWEEN TRUNC(:targetDate) - 180 AND TRUNC(:targetDate) - 1
+)
+AND cl.DTCADASTRO < TRUNC(:targetDate);
+
+--------------------------------------------------------------------------------
+7. MIX DE PRODUTOS DO DIA (Distinct Global)
+--------------------------------------------------------------------------------
+* Regra Comercial:
+  Contagem distinta de produtos (CODPROD) vendidos (CODOPER = 'S' na PCMOV) no
+  dia de referência, considerando a base geral de movimentações de todos os 
+  vendedores ativos combinada (sem duplicidades entre vendedores).
+
+* SQL:
+SELECT COUNT(DISTINCT M.CODPROD) AS TOTAL_MIX
+FROM PCMOV M
+JOIN PCUSUARI U ON U.CODUSUR = M.CODUSUR
+WHERE M.DTMOV >= TRUNC(:targetDate)
+AND M.DTMOV < TRUNC(:targetDate) + 1
+AND M.CODOPER = 'S'
+AND U.BLOQUEIO = 'N';
+
+--------------------------------------------------------------------------------
+8. FATURAMENTO ACUMULADO DO MÊS (MTD)
+--------------------------------------------------------------------------------
+* Regra Comercial:
+  Soma do faturamento líquido acumulado do primeiro dia do mês de referência
+  até o dia de referência, utilizando as mesmas regras e condições do diário.
+
+* SQL - Faturamento Bruto MTD:
+SELECT 
+    COUNT(DISTINCT F.NUMNOTA) AS TOTAL_PEDIDOS,
+    NVL(SUM(F.VLTOTAL), 0) AS TOTAL_VENDAS_BRUTA_MES,
+    COUNT(DISTINCT F.CODCLI) AS CLIENTES_MES
+FROM PCNFSAID F
+JOIN PCUSUARI U ON U.CODUSUR = F.CODUSUR
+WHERE F.DTSAIDA >= TRUNC(:targetDate, 'MM')
+AND F.DTSAIDA < TRUNC(:targetDate) + 1
+AND F.DTCANCEL IS NULL
+AND F.CONDVENDA IN (1, 7, 9)
+AND U.BLOQUEIO = 'N';
+
+* SQL - Devoluções MTD:
+SELECT NVL(SUM(M.QT * M.PUNIT), 0) AS TOTAL_DEVOLUCOES_MES
+FROM PCMOV M
+JOIN PCUSUARI U ON U.CODUSUR = M.CODUSUR
+WHERE M.DTMOV >= TRUNC(:targetDate, 'MM')
+AND M.DTMOV < TRUNC(:targetDate) + 1
+AND M.CODOPER = 'ED'
+AND U.BLOQUEIO = 'N';
+
+--------------------------------------------------------------------------------
+9. META DE VENDAS ACUMULADA DO MÊS
+--------------------------------------------------------------------------------
+* Regra Comercial:
+  Soma de todas as previsões de venda mensais (VLVENDAPREV) dos vendedores ativos
+  planejadas para o mês inteiro na PCMETARCA.
+
+* SQL:
+SELECT NVL(SUM(M.VLVENDAPREV), 0) AS META_TOTAL
+FROM PCMETARCA M
+JOIN PCUSUARI U ON U.CODUSUR = M.CODUSUR
+WHERE M.DATA >= TRUNC(:targetDate, 'MM')
+AND M.DATA < ADD_MONTHS(TRUNC(:targetDate, 'MM'), 1)
+AND U.BLOQUEIO = 'N';
+================================================================================

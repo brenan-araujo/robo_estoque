@@ -1,0 +1,47 @@
+require('dotenv').config();
+const database = require('../src/config/database');
+const { oracledb } = require('../src/config/database');
+(async()=>{
+  await database.initialize();
+  const conn = await database.getConnection();
+  const opt = { outFormat: oracledb.OUT_FORMAT_OBJECT };
+  const J = 90;
+  // Candidatos: dentro do universo do relatório, acelerando, com estoque baixo
+  const q = await conn.execute(
+    `SELECT * FROM (
+      SELECT V.CODPROD, V.FIL, P.DESCRICAO, P.EMBALAGEM, P.UNIDADE, FORN.FANTASIA AS FORNEC,
+        NVL(FORN.PRAZOENTREGA,7) AS PRAZO,
+        V.S0_30, V.S30_60, V.S60_90, V.DEVOL,
+        ROUND((V.S0_30+V.S30_60+V.S60_90+V.DEVOL)/:J,2) AS VDA_ANTIGO,
+        ROUND(GREATEST((3*V.S0_30+2*V.S30_60+1*V.S60_90)/(2*:J),0),2) AS VDA_NOVO,
+        (SELECT NVL(SUM(NVL(E.QTESTGER,0)-NVL(E.QTRESERV,0)-NVL(E.QTBLOQUEADA,0)),0)
+           FROM PCEST E WHERE E.CODPROD=V.CODPROD
+             AND ((V.FIL='20' AND E.CODFILIAL IN ('20','6')) OR (V.FIL<>'20' AND E.CODFILIAL=V.FIL))) AS ESTOQUE,
+        (SELECT NVL(SUM(NVL(I.QTPEDIDA,0)-NVL(I.QTENTREGUE,0)),0)
+           FROM PCITEM I JOIN PCPEDIDO PE ON I.NUMPED=PE.NUMPED
+          WHERE I.CODPROD=V.CODPROD AND (I.QTPEDIDA-NVL(I.QTENTREGUE,0))>0
+            AND PE.DTPREVENT>=TRUNC(SYSDATE) AND PE.DTENTRADAESTOQUE IS NULL
+            AND ((V.FIL='20' AND PE.CODFILIAL IN ('20','6')) OR (V.FIL<>'20' AND PE.CODFILIAL=V.FIL))) AS SALDO_PED
+      FROM (
+        SELECT M.CODPROD, CASE WHEN M.CODFILIAL='6' THEN '20' ELSE M.CODFILIAL END AS FIL,
+          SUM(CASE WHEN M.DTMOV>=TRUNC(SYSDATE)-(:J/3) THEN M.QT-NVL(M.QTDEVOL,0) ELSE 0 END) AS S0_30,
+          SUM(CASE WHEN M.DTMOV<TRUNC(SYSDATE)-(:J/3) AND M.DTMOV>=TRUNC(SYSDATE)-(2*:J/3) THEN M.QT-NVL(M.QTDEVOL,0) ELSE 0 END) AS S30_60,
+          SUM(CASE WHEN M.DTMOV<TRUNC(SYSDATE)-(2*:J/3) THEN M.QT-NVL(M.QTDEVOL,0) ELSE 0 END) AS S60_90,
+          SUM(NVL(M.QTDEVOL,0)) AS DEVOL,
+          COUNT(DISTINCT TRUNC(M.DTMOV)) AS DIAS
+        FROM PCMOV M
+        WHERE M.CODOPER='S' AND M.DTMOV>=TRUNC(SYSDATE)-:J AND M.CODFILIAL IN ('6','20','21','22','23')
+        GROUP BY M.CODPROD, CASE WHEN M.CODFILIAL='6' THEN '20' ELSE M.CODFILIAL END
+        HAVING COUNT(DISTINCT TRUNC(M.DTMOV))>=5
+      ) V
+      JOIN PCPRODUT P ON P.CODPROD=V.CODPROD
+      LEFT JOIN BRAGO.PCFORNEC FORN ON FORN.CODFORNEC=P.CODFORNEC
+      WHERE P.REVENDA='S' AND P.CODEPTO IN (1,2,3,7)
+        AND P.CODFORNEC NOT IN (3,4,14566,14631,14574,14573) AND NVL(P.OBS2,' ')<>'FL'
+        AND V.DEVOL>0
+        AND V.S0_30 > 1.6*(V.S30_60+1)
+      ORDER BY (V.S0_30+V.S30_60+V.S60_90+V.DEVOL) DESC
+    ) WHERE ROWNUM<=8`, {J}, opt);
+  console.table(q.rows);
+  await conn.close(); await database.close();
+})();

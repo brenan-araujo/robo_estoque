@@ -1,4 +1,4 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const logger = require('../utils/logger');
 const fs = require('fs');
@@ -39,23 +39,44 @@ function handleFatalError(err) {
  */
 function initialize(callbacks = {}) {
     return new Promise((resolve, reject) => {
+        const puppeteerOptions = {
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--disable-gpu',
+                '--no-zygote',
+                '--disable-extensions',
+                '--disable-background-networking',
+                '--disable-default-apps',
+            ],
+        };
+
+        // O Chrome gerenciado pelo puppeteer (ex.: 146.x) não inicia nesta máquina
+        // (erro de configuração lado a lado / dependência de runtime ausente),
+        // então usamos o Chrome do sistema mesmo — apesar do desalinhamento de
+        // versão com o puppeteer, que causa quedas de protocolo ocasionais
+        // (ex.: "Protocol error", "Execution context was destroyed").
+        const systemChromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+        if (fs.existsSync(systemChromePath)) {
+            puppeteerOptions.executablePath = systemChromePath;
+        }
+
+        // Sem webVersionCache fixo: usa a versão atual do WhatsApp Web negociada ao vivo.
+        // A versão alpha que estava fixada aqui passou a ser rejeitada pelo servidor em
+        // NOVOS pareamentos (LOGOUT ~47s após escanear o QR), apesar de sessões já
+        // pareadas continuarem funcionando com ela.
         client = new Client({
             authStrategy: new LocalAuth(),
-            puppeteer: {
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--disable-gpu',
-                ],
-            },
+            puppeteer: puppeteerOptions,
         });
 
         let resolved = false;
         let timeoutAfterAuth = null;
+        let hasReceivedQr = false;
 
         function resolveOnce() {
             if (!resolved) {
@@ -67,6 +88,7 @@ function initialize(callbacks = {}) {
         }
 
         client.on('qr', (qr) => {
+            hasReceivedQr = true;
             logger.info('📱 QR Code gerado! Escaneie com o WhatsApp:');
             console.log('');
             qrcode.generate(qr, { small: true });
@@ -101,6 +123,54 @@ function initialize(callbacks = {}) {
             }, 30000);
         });
 
+        client.on('message', async (msg) => {
+            try {
+                if (msg.fromMe) return;
+                if (msg.from.includes('@g.us')) return; // grupo
+                if (msg.from === 'status@broadcast') return;
+                if (msg.type !== 'chat') return; // apenas texto
+
+                const contact = await msg.getContact();
+                let resolvedPhone = contact.number || '';
+                let phonePayload = msg.from;
+
+                if (msg.from.endsWith('@lid') || (contact.id && contact.id.server === 'lid')) {
+                    try {
+                        const lidResult = await client.getContactLidAndPhone(msg.from);
+                        if (lidResult && lidResult[0] && lidResult[0].pn) {
+                            const pnUser = lidResult[0].pn.split('@')[0];
+                            if (pnUser) {
+                                resolvedPhone = pnUser;
+                                phonePayload = pnUser; // Envia o telefone real para o n8n para manter a sessão unificada
+                                logger.info(`[Bia] LID ${msg.from} resolvido para telefone real: ${resolvedPhone}`);
+                            }
+                        }
+                    } catch (lidErr) {
+                        logger.error(`[Bia] Erro ao tentar resolver LID para telefone: ${lidErr.message}`);
+                    }
+                }
+
+                logger.info(`[Bia] Mensagem de ${msg.from} (Resolvido: ${resolvedPhone}): ${msg.body.substring(0, 60)}`);
+
+                const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/bia-whatsapp';
+                fetch(N8N_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phone: phonePayload,
+                        resolvedPhone,
+                        message: msg.body,
+                        timestamp: new Date().toISOString(),
+                        messageId: msg.id._serialized
+                    })
+                }).catch(err => {
+                    logger.error(`[Bia] Erro ao chamar n8n: ${err.message}`);
+                });
+            } catch (err) {
+                logger.error(`[Bia] Erro no listener: ${err.message}`);
+            }
+        });
+
         client.on('auth_failure', (msg) => {
             logger.error(`❌ Falha na autenticação WhatsApp: ${msg}`);
             if (callbacks.onAuthFailure) callbacks.onAuthFailure(msg);
@@ -119,6 +189,10 @@ function initialize(callbacks = {}) {
         // Timeout geral: se nada acontecer em 3min, rejeita
         setTimeout(() => {
             if (!resolved) {
+                if (hasReceivedQr) {
+                    logger.info('ℹ️ WhatsApp aguardando escaneamento do QR Code pelo usuário.');
+                    return;
+                }
                 resolved = true;
                 reject(new Error('Timeout: WhatsApp não inicializou em 3 minutos'));
             }
@@ -228,6 +302,25 @@ async function sendToNumber(phoneNumber, message, itemCount = 0, details = {}) {
         return false;
     }
 
+    // Se for um JID completo (ex: contendo @c.us ou @lid), envia diretamente
+    if (String(phoneNumber).includes('@')) {
+        try {
+            await client.sendMessage(phoneNumber, message);
+            logger.info(`📩 Mensagem enviada para JID ${phoneNumber}`);
+            try {
+                const { trackSent } = require('../utils/sentTracker');
+                trackSent('number', phoneNumber, message, itemCount, details);
+            } catch (e) {}
+            return true;
+        } catch (err) {
+            logger.error(`Erro ao enviar para JID "${phoneNumber}": ${err.message}`);
+            if (isFatalPuppeteerError(err)) {
+                handleFatalError(err);
+            }
+            return false;
+        }
+    }
+
     // Lista de variações do número para tentar (BR: com e sem 9° dígito)
     const variations = [phoneNumber];
     
@@ -284,6 +377,133 @@ async function sendToNumber(phoneNumber, message, itemCount = 0, details = {}) {
         return true;
     } catch (err) {
         logger.error(`Erro ao enviar para ${phoneNumber}: ${err.message}`);
+        if (isFatalPuppeteerError(err)) {
+            handleFatalError(err);
+        }
+        return false;
+    }
+}
+
+/**
+ * Envia um arquivo PDF para um número de telefone
+ */
+async function sendFileToNumber(phoneNumber, filePath, caption = '', details = {}) {
+    if (!isReady) {
+        logger.warn('WhatsApp não está pronto. Arquivo não enviado.');
+        return false;
+    }
+    
+    if (!fs.existsSync(filePath)) {
+        logger.error(`Arquivo não encontrado para envio: ${filePath}`);
+        return false;
+    }
+
+    try {
+        const media = MessageMedia.fromFilePath(filePath);
+        
+        // Lista de variações do número para tentar (BR: com e sem 9° dígito)
+        const variations = [phoneNumber];
+        
+        // Se tem 13 dígitos (55 + 2 DDD + 9 + 8 número), tenta sem o 9
+        if (phoneNumber.length === 13 && phoneNumber.startsWith('55')) {
+            const without9 = phoneNumber.slice(0, 4) + phoneNumber.slice(5);
+            variations.push(without9);
+        }
+        // Se tem 12 dígitos, tenta com o 9
+        if (phoneNumber.length === 12 && phoneNumber.startsWith('55')) {
+            const with9 = phoneNumber.slice(0, 4) + '9' + phoneNumber.slice(4);
+            variations.push(with9);
+        }
+
+        for (const num of variations) {
+            try {
+                const numberId = await client.getNumberId(num);
+                if (numberId) {
+                    await client.sendMessage(numberId._serialized, media, { caption });
+                    logger.info(`✅ Arquivo enviado para número ${num}`);
+                    
+                    try {
+                        const { trackSent } = require('../utils/sentTracker');
+                        trackSent('file', num, caption || `PDF: ${path.basename(filePath)}`, 0, details);
+                    } catch (e) {
+                        logger.error(`Erro ao registrar histórico de envio de arquivo: ${e.message}`);
+                    }
+                    
+                    return true;
+                }
+            } catch (err) {
+                logger.debug(`Tentativa de envio de arquivo para ${num} falhou: ${err.message}`);
+                if (isFatalPuppeteerError(err)) {
+                    handleFatalError(err);
+                    return false;
+                }
+            }
+        }
+
+        // Fallback: tenta enviar direto com @c.us
+        const chatId = `${phoneNumber}@c.us`;
+        await client.sendMessage(chatId, media, { caption });
+        logger.info(`✅ Arquivo enviado para número ${phoneNumber} (fallback)`);
+        
+        try {
+            const { trackSent } = require('../utils/sentTracker');
+            trackSent('file', phoneNumber, caption || `PDF: ${path.basename(filePath)}`, 0, details);
+        } catch (e) {
+            logger.error(`Erro ao registrar histórico de envio de arquivo fallback: ${e.message}`);
+        }
+        
+        return true;
+
+    } catch (err) {
+        logger.error(`Erro ao enviar arquivo para ${phoneNumber}: ${err.message}`);
+        if (isFatalPuppeteerError(err)) {
+            handleFatalError(err);
+        }
+        return false;
+    }
+}
+
+/**
+ * Envia um arquivo (imagem/documento) para um grupo pelo nome
+ * 
+ * @param {string} groupName - Nome do grupo
+ * @param {string} filePath - Caminho do arquivo
+ * @param {string} caption - Legenda da mensagem
+ * @returns {boolean} true se enviou com sucesso
+ */
+async function sendFileToGroup(groupName, filePath, caption = '', details = {}) {
+    if (!isReady) {
+        logger.warn('WhatsApp não está pronto. Arquivo não enviado.');
+        return false;
+    }
+    
+    if (!fs.existsSync(filePath)) {
+        logger.error(`Arquivo não encontrado para envio no grupo: ${filePath}`);
+        return false;
+    }
+
+    try {
+        const groupId = await getGroupId(groupName);
+        if (!groupId) {
+            logger.warn(`Grupo "${groupName}" não encontrado. Arquivo descartado.`);
+            return false;
+        }
+
+        const media = MessageMedia.fromFilePath(filePath);
+        await client.sendMessage(groupId, media, { caption });
+        logger.info(`✅ Arquivo enviado para o grupo "${groupName}"`);
+        
+        try {
+            const { trackSent } = require('../utils/sentTracker');
+            trackSent('group_file', groupName, caption || `PDF/Imagem: ${path.basename(filePath)}`, 0, details);
+        } catch (e) {
+            logger.error(`Erro ao registrar histórico de envio de arquivo para grupo: ${e.message}`);
+        }
+        
+        return true;
+
+    } catch (err) {
+        logger.error(`Erro ao enviar arquivo para grupo "${groupName}": ${err.message}`);
         if (isFatalPuppeteerError(err)) {
             handleFatalError(err);
         }
@@ -378,4 +598,8 @@ async function logout() {
     }
 }
 
-module.exports = { initialize, sendToGroup, sendToNumber, listAllGroups, isClientReady, destroy, logout };
+/** Retorna a instância do client (necessário para registrar listeners externos) */
+function getClient() { return client; }
+
+module.exports = { initialize, sendToGroup, sendToNumber, sendFileToNumber, sendFileToGroup, listAllGroups, isClientReady, getClient, destroy, logout };
+

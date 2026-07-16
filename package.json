@@ -12,10 +12,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cron": "^4.4.0",
     "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
-    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.10",
     "oracledb": "^6.10.0",
+    "pdfkit": "^0.18.0",
     "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "^1.34.7",
     "winston": "^3.19.0"
